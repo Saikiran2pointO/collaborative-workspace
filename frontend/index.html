@@ -18,21 +18,60 @@
             align-items: center;
             height: 100vh;
         }
-        
-        /* THE NEW UI BADGE */
+
+        /* --- NEW: Modal Styles --- */
+        #loginModal {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        .modal-content {
+            background: #282a36;
+            padding: 30px;
+            border-radius: 8px;
+            text-align: center;
+            color: #f8f8f2;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+            border: 1px solid #444;
+        }
+        .modal-content input {
+            padding: 10px;
+            font-size: 16px;
+            border-radius: 4px;
+            border: none;
+            outline: none;
+            margin-right: 10px;
+        }
+        .modal-content button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #50fa7b; /* Dracula Green */
+            color: #282a36;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        /* --- UPDATED: User Badge to hold a list --- */
         .user-badge {
             position: absolute;
             top: 20px;
             right: 30px;
-            background-color: #ff79c6; /* Dracula Theme Pink */
+            background-color: #bd93f9; /* Dracula Purple */
             color: #282a36;
-            padding: 10px 20px;
-            border-radius: 20px;
-            font-weight: bold;
+            padding: 15px;
+            border-radius: 8px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.4);
             z-index: 10;
-            transition: all 0.3s ease;
+            min-width: 150px;
         }
+        .user-badge h3 { margin: 0 0 10px 0; font-size: 16px; }
+        .user-badge ul { margin: 0; padding-left: 20px; font-size: 14px; font-weight: bold;}
 
         .editor-container {
             width: 80vw;
@@ -41,15 +80,23 @@
             border-radius: 8px;
             overflow: hidden; 
         }
-        .CodeMirror {
-            height: 100%;
-            font-size: 16px;
-        }
+        .CodeMirror { height: 100%; font-size: 16px; }
     </style>
 </head>
 <body>
 
-    <div class="user-badge" id="userBadge">Live Users: 0</div>
+    <div id="loginModal">
+        <div class="modal-content">
+            <h2>Join the Workspace</h2>
+            <input type="text" id="usernameInput" placeholder="Enter your name...">
+            <button id="joinBtn">Join</button>
+        </div>
+    </div>
+
+    <div class="user-badge" id="userBadge" style="display: none;">
+        <h3 id="userCount">Live Users: 0</h3>
+        <ul id="userList"></ul>
+    </div>
 
     <div class="editor-container">
         <textarea id="editor"></textarea>
@@ -60,8 +107,15 @@
 
     <script>
         const editorElement = document.getElementById('editor');
+        const loginModal = document.getElementById('loginModal');
+        const usernameInput = document.getElementById('usernameInput');
+        const joinBtn = document.getElementById('joinBtn');
         const userBadge = document.getElementById('userBadge');
+        const userCount = document.getElementById('userCount');
+        const userList = document.getElementById('userList');
         
+        let ws; // Declare WebSocket variable globally
+
         const editor = CodeMirror.fromTextArea(editorElement, {
             mode: "python",
             theme: "dracula",
@@ -69,42 +123,61 @@
             indentUnit: 4,
             matchBrackets: true
         });
-
         editor.setValue("# Welcome to the Collaborative Python Editor\n# Start typing below...\n\n");
 
-        const ws = new WebSocket('ws://localhost:8000/ws');
-
-        ws.onopen = function() {
-            console.log("Connected to the backend!");
-        };
-
-        // UPDATED: Now parses JSON to decide if it updates the Code or the User Badge
-        ws.onmessage = function(event) {
-            const data = JSON.parse(event.data);
-
-            if (data.type === 'system') {
-                // Update the badge with the live count
-                userBadge.innerText = 'Live Users: ' + data.active_users;
-                
-                // A quick flash animation to make it feel responsive
-                userBadge.style.transform = 'scale(1.1)';
-                setTimeout(() => userBadge.style.transform = 'scale(1)', 200);
-
-            } else if (data.type === 'code') {
-                // Update the editor just like before
-                const currentCursor = editor.getCursor(); 
-                if (editor.getValue() !== data.content) {
-                    editor.setValue(data.content);
-                    editor.setCursor(currentCursor); 
-                }
-            }
-        };
-
-        editor.on('change', function(instance, changeObj) {
-            if (changeObj.origin !== 'setValue') {
-                ws.send(instance.getValue());
+        // --- NEW: Trigger connection ONLY when user clicks Join ---
+        joinBtn.addEventListener('click', () => {
+            const username = usernameInput.value.trim();
+            if (username !== "") {
+                loginModal.style.display = 'none'; // Hide the modal
+                userBadge.style.display = 'block'; // Show the active users
+                connectToServer(username);
             }
         });
+
+        // Allow pressing "Enter" to join
+        usernameInput.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') joinBtn.click();
+        });
+
+        function connectToServer(username) {
+            // Pass the username as a URL parameter
+            ws = new WebSocket(`ws://localhost:8000/ws?username=${encodeURIComponent(username)}`);
+
+            ws.onopen = function() {
+                console.log("Connected as " + username);
+            };
+
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+
+                if (data.type === 'system') {
+                    // Update count
+                    userCount.innerText = `Live Users: ${data.count}`;
+                    
+                    // Clear the current list and rebuild it
+                    userList.innerHTML = '';
+                    data.users.forEach(user => {
+                        const li = document.createElement('li');
+                        li.innerText = user;
+                        userList.appendChild(li);
+                    });
+
+                } else if (data.type === 'code') {
+                    const currentCursor = editor.getCursor(); 
+                    if (editor.getValue() !== data.content) {
+                        editor.setValue(data.content);
+                        editor.setCursor(currentCursor); 
+                    }
+                }
+            };
+
+            editor.on('change', function(instance, changeObj) {
+                if (changeObj.origin !== 'setValue') {
+                    ws.send(instance.getValue());
+                }
+            });
+        }
     </script>
 </body>
 </html>
