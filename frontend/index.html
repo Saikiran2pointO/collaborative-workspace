@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Collaborative Code Editor</title>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/dracula.min.css">
+
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #282a36; /* Dracula background color */
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .editor-container {
+            width: 80vw;
+            height: 80vh;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border-radius: 8px;
+            overflow: hidden; /* Keeps the rounded corners clean */
+        }
+        /* Override default CodeMirror height to fill our container */
+        .CodeMirror {
+            height: 100%;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="editor-container">
+        <textarea id="editor"></textarea>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/python/python.min.js"></script>
+
+    <script>
+        // 1. Initialize the Pro Editor
+        const editorElement = document.getElementById('editor');
+        const editor = CodeMirror.fromTextArea(editorElement, {
+            mode: "python",
+            theme: "dracula",
+            lineNumbers: true,
+            indentUnit: 4,
+            matchBrackets: true
+        });
+
+        // Set a default starting message
+        editor.setValue("# Welcome to the Collaborative Python Editor\n# Start typing below...\n\n");
+
+        // 2. Establish the WebSocket connection
+        const ws = new WebSocket('ws://localhost:8000/ws');
+
+        ws.onopen = function() {
+            console.log("Connected to the backend!");
+        };
+
+        // 3. Listen for incoming broadcasts
+        ws.onmessage = function(event) {
+            const currentCursor = editor.getCursor(); // Save where the user is typing
+            
+            // Only update if the text is actually different
+            if (editor.getValue() !== event.data) {
+                editor.setValue(event.data);
+                editor.setCursor(currentCursor); // Put the cursor back so their typing isn't interrupted
+            }
+        };
+
+        // 4. Broadcast keystrokes to the server
+        editor.on('change', function(instance, changeObj) {
+            // THE CIRCUIT BREAKER: Only send if a human typed it
+            if (changeObj.origin !== 'setValue') {
+                ws.send(instance.getValue());
+            }
+        });
+    </script>
+</body>
+</html>
