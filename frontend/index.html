@@ -142,7 +142,7 @@
 
         function connectToServer(username) {
             // Pass the username as a URL parameter
-            ws = new WebSocket(`ws://localhost:8000/ws?username=${encodeURIComponent(username)}`);
+            ws = new WebSocket(`ws://my-collab-backend-382d.onrender.com/ws?username=${encodeURIComponent(username)}`);
 
             ws.onopen = function() {
                 console.log("Connected as " + username);
