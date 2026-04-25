@@ -139,7 +139,7 @@
             // --- CRITICAL: PASTE YOUR RENDER URL HERE ---
             const renderURL = "your-actual-render-name.onrender.com"; 
             
-            ws = new WebSocket(`wss://${renderURL}/ws?username=${encodeURIComponent(username)}&room_code=${roomCode}&action=${action}`);
+            ws = new WebSocket(`wss://my-collab-backend-382d.onrender.com/ws?username=${encodeURIComponent(username)}&room_code=${roomCode}&action=${action}`);
 
             // NEW: Typing state management
             const typingIndicator = document.getElementById('typingIndicator');
