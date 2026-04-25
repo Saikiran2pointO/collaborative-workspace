@@ -56,6 +56,33 @@
             cursor: pointer;
             font-weight: bold;
         }
+        
+        /* --- NEW: Loading Overlay Styles --- */
+        #loadingOverlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(40, 42, 54, 0.95); /* Solid Dracula background */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            color: #f8f8f2;
+            text-align: center;
+        }
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top: 4px solid #50fa7b; /* Dracula Green */
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        @keyframes spin { 
+            0% { transform: rotate(0deg); } 
+            100% { transform: rotate(360deg); } 
+        }
 
         /* --- UPDATED: User Badge to hold a list --- */
         .user-badge {
@@ -98,6 +125,11 @@
         <ul id="userList"></ul>
     </div>
 
+    <div id="loadingOverlay" style="display: none;">
+        <div class="spinner"></div>
+        <p id="loadingText">Waking up the server...<br><small style="color: #6272a4;">(Free cloud servers can take up to 50 seconds to start)</small></p>
+    </div>
+
     <div class="editor-container">
         <textarea id="editor"></textarea>
     </div>
@@ -125,12 +157,15 @@
         });
         editor.setValue("# Welcome to the Collaborative Python Editor\n# Start typing below...\n\n");
 
-        // --- NEW: Trigger connection ONLY when user clicks Join ---
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const loadingText = document.getElementById('loadingText');
+
+        // --- UPDATED: Show loader when clicking Join ---
         joinBtn.addEventListener('click', () => {
             const username = usernameInput.value.trim();
             if (username !== "") {
-                loginModal.style.display = 'none'; // Hide the modal
-                userBadge.style.display = 'block'; // Show the active users
+                loginModal.style.display = 'none'; 
+                loadingOverlay.style.display = 'flex'; // Show the loading screen
                 connectToServer(username);
             }
         });
@@ -141,21 +176,38 @@
         });
 
         function connectToServer(username) {
-            // Pass the username as a URL parameter
-            ws = new WebSocket(`ws://my-collab-backend-382d.onrender.com/ws?username=${encodeURIComponent(username)}`);
+            // Replace with your actual Render URL
+            ws = new WebSocket(`wss://my-collab-backend.onrender.com/ws?username=${encodeURIComponent(username)}`);
 
+            // --- NEW: Handle Successful Connection ---
             ws.onopen = function() {
                 console.log("Connected as " + username);
+                loadingOverlay.style.display = 'none'; // Hide the loader
+                userBadge.style.display = 'block';     // Show the user badge
+            };
+
+            // --- NEW: Handle Connection Errors ---
+            ws.onerror = function() {
+                document.querySelector('.spinner').style.display = 'none'; // Hide spinner
+                loadingText.innerHTML = 'Failed to connect to the server.<br><small style="color: #ff5555;">The server might be down. Please refresh to try again.</small>';
+            };
+
+            // --- NEW: Handle Disconnections ---
+            ws.onclose = function() {
+                if (loadingOverlay.style.display === 'none') {
+                    // If they were already in the app, show them they disconnected
+                    loadingOverlay.style.display = 'flex';
+                }
+                document.querySelector('.spinner').style.display = 'none';
+                loadingText.innerHTML = 'Connection lost.<br><small style="color: #ff5555;">Please refresh the page to reconnect.</small>';
+                userBadge.style.display = 'none';
             };
 
             ws.onmessage = function(event) {
                 const data = JSON.parse(event.data);
 
                 if (data.type === 'system') {
-                    // Update count
                     userCount.innerText = `Live Users: ${data.count}`;
-                    
-                    // Clear the current list and rebuild it
                     userList.innerHTML = '';
                     data.users.forEach(user => {
                         const li = document.createElement('li');
