@@ -4,38 +4,44 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Private Collaborative Editor</title>
-
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/dracula.min.css">
-
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #282a36; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #282a36; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
         
         #loginModal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.85); display: flex; justify-content: center; align-items: center; z-index: 100; }
         .modal-content { background: #282a36; padding: 40px; border-radius: 8px; text-align: center; color: #f8f8f2; box-shadow: 0 10px 30px rgba(0,0,0,0.8); border: 1px solid #444; width: 350px; }
         input { width: 80%; padding: 12px; margin-bottom: 20px; font-size: 16px; border-radius: 4px; border: none; outline: none; text-align: center; background: #44475a; color: #f8f8f2; }
         button { width: 85%; padding: 12px; font-size: 16px; font-weight: bold; cursor: pointer; border: none; border-radius: 4px; transition: 0.2s; margin-bottom: 10px; }
-        
-        .btn-primary { background-color: #50fa7b; color: #282a36; }
-        .btn-primary:hover { background-color: #40c962; }
-        .btn-secondary { background-color: #bd93f9; color: #282a36; }
-        .btn-secondary:hover { background-color: #9d72d8; }
+        .btn-primary { background-color: #50fa7b; color: #282a36; } .btn-primary:hover { background-color: #40c962; }
+        .btn-secondary { background-color: #bd93f9; color: #282a36; } .btn-secondary:hover { background-color: #9d72d8; }
         .btn-back { background-color: transparent; color: #6272a4; text-decoration: underline; margin-top: 10px; font-size: 14px; }
-        .btn-back:hover { color: #f8f8f2; }
-
+        
         #loadingOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(40, 42, 54, 0.95); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 200; color: #f8f8f2; }
         .spinner { border: 4px solid rgba(255, 255, 255, 0.1); border-top: 4px solid #50fa7b; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin-bottom: 20px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
         .top-bar { position: absolute; top: 20px; right: 30px; display: flex; gap: 15px; z-index: 10; }
-        .room-badge { background-color: #ffb86c; color: #282a36; padding: 15px; border-radius: 8px; font-weight: bold; box-shadow: 0 4px 15px rgba(0,0,0,0.4); text-align: center; }
+        .room-badge, .user-badge { background-color: #bd93f9; color: #282a36; padding: 15px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.4); text-align: center; }
+        .room-badge { background-color: #ffb86c; font-weight: bold; }
         .room-badge span { font-size: 24px; display: block; margin-top: 5px; letter-spacing: 2px;}
-        .user-badge { background-color: #bd93f9; color: #282a36; padding: 15px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.4); min-width: 150px; }
-        .user-badge h3 { margin: 0 0 10px 0; font-size: 16px; }
-        .user-badge ul { margin: 0; padding-left: 20px; font-size: 14px; font-weight: bold;}
+        .user-badge { min-width: 150px; }
+        .user-badge h3 { margin: 0 0 10px 0; font-size: 16px; } .user-badge ul { margin: 0; padding-left: 20px; font-size: 14px; font-weight: bold; text-align: left;}
 
-        .editor-container { width: 80vw; height: 80vh; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border-radius: 8px; overflow: hidden; }
+        /* NEW: Workspace Toggle Switch */
+        .workspace-toggle { position: absolute; top: 20px; left: 30px; display: none; background: #44475a; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.4); z-index: 10; }
+        .workspace-toggle button { width: auto; margin: 0; padding: 15px 25px; border-radius: 0; font-size: 16px; font-weight: bold; background: transparent; color: #f8f8f2; transition: 0.3s; }
+        .workspace-toggle button.active { background: #50fa7b; color: #282a36; }
+
+        /* Workspace Containers */
+        .workspace-container { position: relative; width: 80vw; height: 80vh; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border-radius: 8px; overflow: hidden; display: none; }
+        .workspace-container.active { display: block; }
+        
         .CodeMirror { height: 100%; font-size: 16px; }
+        #typingIndicator { display: none; position: absolute; bottom: 20px; right: 30px; background: rgba(40, 42, 54, 0.9); color: #8be9fd; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-style: italic; z-index: 10; }
+        
+        /* Whiteboard Specifics */
+        #whiteboard { width: 100%; height: 100%; background: #f8f8f2; cursor: crosshair; }
     </style>
 </head>
 <body>
@@ -48,7 +54,6 @@
                 <button class="btn-primary" onclick="showView('view-join')">Join Existing Room</button>
                 <button class="btn-secondary" onclick="showView('view-host')">Host New Room</button>
             </div>
-
             <div id="view-join" style="display: none;">
                 <h2>Join Workspace</h2>
                 <input type="text" id="joinCode" placeholder="Enter 6-Digit Code" maxlength="6" autocomplete="off">
@@ -56,78 +61,131 @@
                 <button class="btn-primary" onclick="attemptJoin()">Enter Room</button>
                 <button class="btn-back" onclick="showView('view-home')">Go Back</button>
             </div>
-
             <div id="view-host" style="display: none;">
                 <h2>Create Workspace</h2>
                 <input type="text" id="hostName" placeholder="Your Username" autocomplete="off">
                 <button class="btn-secondary" onclick="attemptHost()">Generate Room</button>
                 <button class="btn-back" onclick="showView('view-home')">Go Back</button>
             </div>
-
         </div>
     </div>
 
     <div id="loadingOverlay">
-        <div class="spinner"></div>
-        <p id="loadingText">Connecting to secure room...</p>
+        <div class="spinner"></div><p id="loadingText">Connecting to secure room...</p>
+    </div>
+
+    <div class="workspace-toggle" id="workspaceToggle">
+        <button id="btn-code" class="active" onclick="switchWorkspace('code')">Code Editor</button>
+        <button id="btn-plan" onclick="switchWorkspace('plan')">Whiteboard</button>
     </div>
 
     <div class="top-bar" id="uiBadges" style="display: none;">
         <div class="room-badge">Room Code<span id="displayRoomCode">------</span></div>
-        <div class="user-badge">
-            <h3 id="userCount">Live Users: 0</h3>
-            <ul id="userList"></ul>
-        </div>
+        <div class="user-badge"><h3 id="userCount">Live Users: 0</h3><ul id="userList"></ul></div>
     </div>
 
-    <div class="editor-container" style="position: relative;">
+    <div class="workspace-container active" id="workspace-code">
         <textarea id="editor"></textarea>
-        
-        <div id="typingIndicator" style="display: none; position: absolute; bottom: 20px; right: 30px; background: rgba(40, 42, 54, 0.9); color: #8be9fd; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-style: italic; z-index: 10; box-shadow: 0 4px 10px rgba(0,0,0,0.5);"></div>
+        <div id="typingIndicator"></div>
+    </div>
+
+    <div class="workspace-container" id="workspace-plan">
+        <canvas id="whiteboard"></canvas>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/python/python.min.js"></script>
-
     <script>
         let ws;
         
-        // Initialize Editor
+        // --- UI & TAB SWITCHING LOGIC ---
+        function switchWorkspace(type) {
+            document.getElementById('workspace-code').classList.remove('active');
+            document.getElementById('workspace-plan').classList.remove('active');
+            document.getElementById('btn-code').classList.remove('active');
+            document.getElementById('btn-plan').classList.remove('active');
+
+            document.getElementById(`workspace-${type}`).classList.add('active');
+            document.getElementById(`btn-${type}`).classList.add('active');
+            
+            if(type === 'plan') resizeCanvas(); // Ensure canvas fits when opened
+        }
+
+        // --- CODE EDITOR INITIALIZATION ---
         const editor = CodeMirror.fromTextArea(document.getElementById('editor'), {
             mode: "python", theme: "dracula", lineNumbers: true, indentUnit: 4, matchBrackets: true
         });
         editor.setValue("# Welcome to your secure workspace.\n# Start typing...\n\n");
 
-        // UI Flow Management
-        function showView(viewId) {
-            document.getElementById('errorBox').style.display = 'none';
-            document.getElementById('view-home').style.display = 'none';
-            document.getElementById('view-join').style.display = 'none';
-            document.getElementById('view-host').style.display = 'none';
-            document.getElementById(viewId).style.display = 'block';
+        // --- WHITEBOARD ENGINE ---
+        const canvas = document.getElementById('whiteboard');
+        const ctx = canvas.getContext('2d');
+        let isDrawing = false;
+        let lastX = 0, lastY = 0;
+
+        function resizeCanvas() {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        function getMousePos(e) {
+            const rect = canvas.getBoundingClientRect();
+            return { x: e.clientX - rect.left, y: e.clientY - rect.top };
         }
 
-        function showError(message) {
-            const errorBox = document.getElementById('errorBox');
-            errorBox.innerText = message;
-            errorBox.style.display = 'block';
+        function drawLine(x0, y0, x1, y1, sendData = false) {
+            ctx.beginPath();
+            ctx.moveTo(x0, y0);
+            ctx.lineTo(x1, y1);
+            ctx.strokeStyle = "#282a36"; // Dark ink
+            ctx.lineWidth = 3;
+            ctx.lineCap = "round";
+            ctx.stroke();
+            ctx.closePath();
+
+            // Fire to WebSockets if we drew this locally
+            if (sendData && ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'draw', x0, y0, x1, y1 }));
+            }
+        }
+
+        // Drawing Event Listeners
+        canvas.addEventListener('mousedown', (e) => {
+            isDrawing = true;
+            const pos = getMousePos(e);
+            lastX = pos.x; lastY = pos.y;
+        });
+        canvas.addEventListener('mousemove', (e) => {
+            if (!isDrawing) return;
+            const pos = getMousePos(e);
+            drawLine(lastX, lastY, pos.x, pos.y, true);
+            lastX = pos.x; lastY = pos.y;
+        });
+        canvas.addEventListener('mouseup', () => isDrawing = false);
+        canvas.addEventListener('mouseout', () => isDrawing = false);
+
+        // --- LOGIN & CONNECTION LOGIC ---
+        function showView(viewId) {
+            document.getElementById('errorBox').style.display = 'none';
+            ['view-home', 'view-join', 'view-host'].forEach(id => document.getElementById(id).style.display = 'none');
+            document.getElementById(viewId).style.display = 'block';
+        }
+        function showError(msg) {
+            const box = document.getElementById('errorBox'); box.innerText = msg; box.style.display = 'block';
         }
 
         function attemptHost() {
             const name = document.getElementById('hostName').value.trim();
-            if (name === "") return alert("Please enter a username.");
-            
-            const generatedCode = Math.floor(100000 + Math.random() * 900000).toString();
-            startConnection(name, generatedCode, "host");
+            if (!name) return showError("Please enter a username.");
+            startConnection(name, Math.floor(100000 + Math.random() * 900000).toString(), "host");
         }
 
         function attemptJoin() {
             const code = document.getElementById('joinCode').value.trim();
             const name = document.getElementById('joinName').value.trim();
-            
-            if (code.length !== 6) return alert("Please enter a valid 6-digit code.");
-            if (name === "") return alert("Please enter a username.");
-            
+            if (code.length !== 6) return showError("Please enter a valid 6-digit code.");
+            if (!name) return showError("Please enter a username.");
             startConnection(name, code, "join");
         }
 
@@ -141,88 +199,48 @@
             
             ws = new WebSocket(`wss://my-collab-backend-382d.onrender.com/ws?username=${encodeURIComponent(username)}&room_code=${roomCode}&action=${action}`);
 
-            // NEW: Typing state management
             const typingIndicator = document.getElementById('typingIndicator');
             const typingUsers = new Set();
-            let typingTimer;
-            const typingInterval = 1000; // Wait 1 second after last keystroke to hide
-            let isTyping = false;
-
-            function updateTypingUI() {
-                if (typingUsers.size === 0) {
-                    typingIndicator.style.display = 'none';
-                } else if (typingUsers.size === 1) {
-                    typingIndicator.innerText = `${[...typingUsers][0]} is typing...`;
-                    typingIndicator.style.display = 'block';
-                } else {
-                    typingIndicator.innerText = 'Multiple people are typing...';
-                    typingIndicator.style.display = 'block';
-                }
-            }
+            let typingTimer; let isTyping = false;
 
             ws.onopen = function() {
                 document.getElementById('loadingOverlay').style.display = 'none';
                 document.getElementById('uiBadges').style.display = 'flex';
+                document.getElementById('workspaceToggle').style.display = 'flex'; // Show tabs
+                resizeCanvas();
             };
 
             ws.onmessage = function(event) {
                 const data = JSON.parse(event.data);
-
                 if (data.type === 'error') {
-                    showError(data.message); 
-                    ws.close();
+                    showError(data.message); ws.close();
                     document.getElementById('loadingOverlay').style.display = 'none';
                     document.getElementById('loginModal').style.display = 'flex';
-                    return;
-                }
-
-                if (data.type === 'system') {
+                } else if (data.type === 'system') {
                     document.getElementById('userCount').innerText = `Live Users: ${data.count}`;
-                    const userList = document.getElementById('userList');
-                    userList.innerHTML = '';
-                    data.users.forEach(user => {
-                        const li = document.createElement('li');
-                        li.innerText = user;
-                        userList.appendChild(li);
-                    });
+                    const userList = document.getElementById('userList'); userList.innerHTML = '';
+                    data.users.forEach(u => { const li = document.createElement('li'); li.innerText = u; userList.appendChild(li); });
                 } else if (data.type === 'code') {
-                    const currentCursor = editor.getCursor(); 
-                    if (editor.getValue() !== data.content) {
-                        editor.setValue(data.content);
-                        editor.setCursor(currentCursor); 
-                    }
+                    const cursor = editor.getCursor(); 
+                    if (editor.getValue() !== data.content) { editor.setValue(data.content); editor.setCursor(cursor); }
                 } else if (data.type === 'typing') {
-                    // NEW: Handle incoming typing status
-                    if (data.typing) {
-                        typingUsers.add(data.username);
-                    } else {
-                        typingUsers.delete(data.username);
-                    }
-                    updateTypingUI();
+                    data.typing ? typingUsers.add(data.username) : typingUsers.delete(data.username);
+                    typingIndicator.style.display = typingUsers.size ? 'block' : 'none';
+                    if (typingUsers.size) typingIndicator.innerText = typingUsers.size === 1 ? `${[...typingUsers][0]} is typing...` : 'Multiple people typing...';
+                } else if (data.type === 'draw') {
+                    // NEW: Draw incoming lines from other users
+                    drawLine(data.x0, data.y0, data.x1, data.y1, false);
                 }
             };
 
-            ws.onerror = function() {
-                document.querySelector('.spinner').style.display = 'none';
-                document.getElementById('loadingText').innerHTML = 'Failed to connect.<br><small style="color: #ff5555;">Server might be down.</small>';
-            };
+            ws.onerror = () => { document.querySelector('.spinner').style.display = 'none'; document.getElementById('loadingText').innerHTML = 'Failed to connect.'; };
 
             editor.on('change', function(instance, changeObj) {
                 if (changeObj.origin !== 'setValue') {
-                    // NEW: Send Code as packaged JSON
                     ws.send(JSON.stringify({ type: 'code', content: instance.getValue() }));
-
-                    // NEW: The Debounce Logic
-                    if (!isTyping) {
-                        isTyping = true;
-                        ws.send(JSON.stringify({ type: 'typing', typing: true }));
-                    }
-                    
+                    if (!isTyping) { isTyping = true; ws.send(JSON.stringify({ type: 'typing', typing: true })); }
                     clearTimeout(typingTimer);
-                    typingTimer = setTimeout(() => {
-                        isTyping = false;
-                        ws.send(JSON.stringify({ type: 'typing', typing: false }));
-                    }, typingInterval);
+                    typingTimer = setTimeout(() => { isTyping = false; ws.send(JSON.stringify({ type: 'typing', typing: false })); }, 1000);
                 }
             });
         }

@@ -42,11 +42,18 @@ class ConnectionManager:
             for connection in self.rooms[room_code]["connections"].keys():
                 await connection.send_text(message)
 
-    # NEW: Broadcast typing status to everyone EXCEPT the person typing
     async def broadcast_typing(self, username: str, is_typing: bool, room_code: str, sender: WebSocket):
         if room_code in self.rooms:
             payload = {"type": "typing", "username": username, "typing": is_typing}
             message = json.dumps(payload)
+            for connection in self.rooms[room_code]["connections"].keys():
+                if connection != sender:
+                    await connection.send_text(message)
+
+    # NEW: Broadcast drawing coordinates instantly to everyone else
+    async def broadcast_draw(self, draw_data: dict, room_code: str, sender: WebSocket):
+        if room_code in self.rooms:
+            message = json.dumps(draw_data)
             for connection in self.rooms[room_code]["connections"].keys():
                 if connection != sender:
                     await connection.send_text(message)
@@ -77,19 +84,20 @@ async def websocket_endpoint(
     await manager.connect(websocket, room_code, username, action)
     try:
         while True:
-            # NEW: The server now expects JSON from the frontend
             data = await websocket.receive_text()
             try:
                 parsed_data = json.loads(data)
                 
-                # Route the data based on what type of message it is
+                # Route the data to the correct broadcast function
                 if parsed_data["type"] == "code":
                     await manager.broadcast_code(parsed_data["content"], room_code)
                 elif parsed_data["type"] == "typing":
                     await manager.broadcast_typing(username, parsed_data["typing"], room_code, websocket)
+                elif parsed_data["type"] == "draw": # NEW: Handle whiteboard data
+                    await manager.broadcast_draw(parsed_data, room_code, websocket)
             
             except json.JSONDecodeError:
-                pass # Ignore bad data
+                pass
                 
     except WebSocketDisconnect:
         manager.disconnect(websocket, room_code)
