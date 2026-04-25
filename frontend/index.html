@@ -42,7 +42,7 @@
 
     <div id="loginModal">
         <div class="modal-content">
-            
+            <div id="errorBox" style="display: none; background-color: rgba(255, 85, 85, 0.2); color: #ff5555; border: 1px solid #ff5555; padding: 10px; border-radius: 4px; margin-bottom: 15px; font-size: 14px; font-weight: bold;"></div>
             <div id="view-home">
                 <h2>Collaborative Editor</h2>
                 <button class="btn-primary" onclick="showView('view-join')">Join Existing Room</button>
@@ -98,10 +98,17 @@
 
         // UI Flow Management
         function showView(viewId) {
+            document.getElementById('errorBox').style.display = 'none';
             document.getElementById('view-home').style.display = 'none';
             document.getElementById('view-join').style.display = 'none';
             document.getElementById('view-host').style.display = 'none';
             document.getElementById(viewId).style.display = 'block';
+        }
+
+        function showError(message) {
+            const errorBox = document.getElementById('errorBox');
+            errorBox.innerText = message;
+            errorBox.style.display = 'block';
         }
 
         function attemptHost() {
@@ -143,7 +150,7 @@
 
                 // SERVER REJECTION HANDLING
                 if (data.type === 'error') {
-                    alert(data.message); // Show the exact error (Duplicate Name or Bad Room)
+                    showError(data.message); // Show the exact error (Duplicate Name or Bad Room)
                     ws.close();
                     // Reset UI so they can try again
                     document.getElementById('loadingOverlay').style.display = 'none';
