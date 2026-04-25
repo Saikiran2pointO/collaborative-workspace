@@ -6,25 +6,17 @@ app = FastAPI()
 
 class ConnectionManager:
     def __init__(self):
-        # UPGRADED STRUCTURE: { "room_code": { "host": "username", "connections": {websocket: "username"} } }
         self.rooms: Dict[str, Dict[str, Any]] = {}
 
     async def connect(self, websocket: WebSocket, room_code: str, username: str, action: str):
-        # If hosting a new room, set this user as the host
         if room_code not in self.rooms:
-            self.rooms[room_code] = {
-                "host": username,
-                "connections": {}
-            }
-            
+            self.rooms[room_code] = {"host": username, "connections": {}}
         self.rooms[room_code]["connections"][websocket] = username
         await self.broadcast_system_state(room_code)
 
     def disconnect(self, websocket: WebSocket, room_code: str):
         if room_code in self.rooms and websocket in self.rooms[room_code]["connections"]:
             del self.rooms[room_code]["connections"][websocket]
-            
-            # If the room is empty, delete it completely
             if len(self.rooms[room_code]["connections"]) == 0:
                 del self.rooms[room_code]
 
@@ -32,18 +24,14 @@ class ConnectionManager:
         if room_code in self.rooms:
             room_data = self.rooms[room_code]
             host_name = room_data["host"]
-            
-            # Build the user list, adding "(Host)" to the creator's name
             users = []
             for uname in room_data["connections"].values():
                 if uname == host_name:
                     users.append(f"{uname} (Host)")
                 else:
                     users.append(uname)
-
             payload = {"type": "system", "users": users, "count": len(users)}
             message = json.dumps(payload)
-            
             for connection in room_data["connections"].keys():
                 await connection.send_text(message)
 
@@ -54,9 +42,17 @@ class ConnectionManager:
             for connection in self.rooms[room_code]["connections"].keys():
                 await connection.send_text(message)
 
+    # NEW: Broadcast typing status to everyone EXCEPT the person typing
+    async def broadcast_typing(self, username: str, is_typing: bool, room_code: str, sender: WebSocket):
+        if room_code in self.rooms:
+            payload = {"type": "typing", "username": username, "typing": is_typing}
+            message = json.dumps(payload)
+            for connection in self.rooms[room_code]["connections"].keys():
+                if connection != sender:
+                    await connection.send_text(message)
+
 manager = ConnectionManager()
 
-# NEW: We now require an 'action' (either "join" or "host")
 @app.websocket("/ws")
 async def websocket_endpoint(
     websocket: WebSocket, 
@@ -66,13 +62,11 @@ async def websocket_endpoint(
 ):
     await websocket.accept()
 
-    # BUG 2 FIX: Prevent joining ghost rooms
     if action == "join" and room_code not in manager.rooms:
         await websocket.send_text(json.dumps({"type": "error", "message": "Room does not exist. Please check your 6-digit code."}))
         await websocket.close()
         return
 
-    # BUG 1 FIX: Prevent duplicate usernames in the same room
     if room_code in manager.rooms:
         existing_users = manager.rooms[room_code]["connections"].values()
         if username in existing_users:
@@ -80,12 +74,23 @@ async def websocket_endpoint(
             await websocket.close()
             return
 
-    # If all security checks pass, connect them!
     await manager.connect(websocket, room_code, username, action)
     try:
         while True:
+            # NEW: The server now expects JSON from the frontend
             data = await websocket.receive_text()
-            await manager.broadcast_code(data, room_code)
+            try:
+                parsed_data = json.loads(data)
+                
+                # Route the data based on what type of message it is
+                if parsed_data["type"] == "code":
+                    await manager.broadcast_code(parsed_data["content"], room_code)
+                elif parsed_data["type"] == "typing":
+                    await manager.broadcast_typing(username, parsed_data["typing"], room_code, websocket)
+            
+            except json.JSONDecodeError:
+                pass # Ignore bad data
+                
     except WebSocketDisconnect:
         manager.disconnect(websocket, room_code)
         if room_code in manager.rooms:

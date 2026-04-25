@@ -80,8 +80,10 @@
         </div>
     </div>
 
-    <div class="editor-container">
+    <div class="editor-container" style="position: relative;">
         <textarea id="editor"></textarea>
+        
+        <div id="typingIndicator" style="display: none; position: absolute; bottom: 20px; right: 30px; background: rgba(40, 42, 54, 0.9); color: #8be9fd; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-style: italic; z-index: 10; box-shadow: 0 4px 10px rgba(0,0,0,0.5);"></div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
@@ -137,8 +139,26 @@
             // --- CRITICAL: PASTE YOUR RENDER URL HERE ---
             const renderURL = "your-actual-render-name.onrender.com"; 
             
-            // Notice the new 'action' parameter being sent to the backend
-            ws = new WebSocket(`wss://my-collab-backend-382d.onrender.com/ws?username=${encodeURIComponent(username)}&room_code=${roomCode}&action=${action}`);
+            ws = new WebSocket(`wss://${renderURL}/ws?username=${encodeURIComponent(username)}&room_code=${roomCode}&action=${action}`);
+
+            // NEW: Typing state management
+            const typingIndicator = document.getElementById('typingIndicator');
+            const typingUsers = new Set();
+            let typingTimer;
+            const typingInterval = 1000; // Wait 1 second after last keystroke to hide
+            let isTyping = false;
+
+            function updateTypingUI() {
+                if (typingUsers.size === 0) {
+                    typingIndicator.style.display = 'none';
+                } else if (typingUsers.size === 1) {
+                    typingIndicator.innerText = `${[...typingUsers][0]} is typing...`;
+                    typingIndicator.style.display = 'block';
+                } else {
+                    typingIndicator.innerText = 'Multiple people are typing...';
+                    typingIndicator.style.display = 'block';
+                }
+            }
 
             ws.onopen = function() {
                 document.getElementById('loadingOverlay').style.display = 'none';
@@ -148,11 +168,9 @@
             ws.onmessage = function(event) {
                 const data = JSON.parse(event.data);
 
-                // SERVER REJECTION HANDLING
                 if (data.type === 'error') {
-                    showError(data.message); // Show the exact error (Duplicate Name or Bad Room)
+                    showError(data.message); 
                     ws.close();
-                    // Reset UI so they can try again
                     document.getElementById('loadingOverlay').style.display = 'none';
                     document.getElementById('loginModal').style.display = 'flex';
                     return;
@@ -173,6 +191,14 @@
                         editor.setValue(data.content);
                         editor.setCursor(currentCursor); 
                     }
+                } else if (data.type === 'typing') {
+                    // NEW: Handle incoming typing status
+                    if (data.typing) {
+                        typingUsers.add(data.username);
+                    } else {
+                        typingUsers.delete(data.username);
+                    }
+                    updateTypingUI();
                 }
             };
 
@@ -183,7 +209,20 @@
 
             editor.on('change', function(instance, changeObj) {
                 if (changeObj.origin !== 'setValue') {
-                    ws.send(instance.getValue());
+                    // NEW: Send Code as packaged JSON
+                    ws.send(JSON.stringify({ type: 'code', content: instance.getValue() }));
+
+                    // NEW: The Debounce Logic
+                    if (!isTyping) {
+                        isTyping = true;
+                        ws.send(JSON.stringify({ type: 'typing', typing: true }));
+                    }
+                    
+                    clearTimeout(typingTimer);
+                    typingTimer = setTimeout(() => {
+                        isTyping = false;
+                        ws.send(JSON.stringify({ type: 'typing', typing: false }));
+                    }, typingInterval);
                 }
             });
         }
