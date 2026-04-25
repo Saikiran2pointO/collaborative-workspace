@@ -6,46 +6,63 @@ app = FastAPI()
 
 class ConnectionManager:
     def __init__(self):
-        # Dictionary to store {websocket_object: "Username"}
-        self.active_connections: Dict[WebSocket, str] = {}
+        # NEW STRUCTURE: { "room_code": { websocket: "username" } }
+        self.rooms: Dict[str, Dict[WebSocket, str]] = {}
 
-    async def connect(self, websocket: WebSocket, username: str):
+    async def connect(self, websocket: WebSocket, room_code: str, username: str):
         await websocket.accept()
-        # Save the connection with the user's name
-        self.active_connections[websocket] = username
-        await self.broadcast_system_state()
-
-    def disconnect(self, websocket: WebSocket):
-        # Remove the user when they leave
-        if websocket in self.active_connections:
-            del self.active_connections[websocket]
-
-    async def broadcast_system_state(self):
-        # Get a list of all current usernames
-        users = list(self.active_connections.values())
-        # Send both the count AND the list of names
-        payload = {"type": "system", "users": users, "count": len(users)}
-        message = json.dumps(payload)
         
-        for connection in self.active_connections.keys():
-            await connection.send_text(message)
+        # If the room doesn't exist yet, create it
+        if room_code not in self.rooms:
+            self.rooms[room_code] = {}
+            
+        # Add the user to the specific room
+        self.rooms[room_code][websocket] = username
+        await self.broadcast_system_state(room_code)
 
-    async def broadcast_code(self, code: str):
-        payload = {"type": "code", "content": code}
-        message = json.dumps(payload)
-        for connection in self.active_connections.keys():
-            await connection.send_text(message)
+    def disconnect(self, websocket: WebSocket, room_code: str):
+        # Remove the user from the room
+        if room_code in self.rooms and websocket in self.rooms[room_code]:
+            del self.rooms[room_code][websocket]
+            
+            # Housekeeping: If the room is empty, delete it from memory to save server space
+            if len(self.rooms[room_code]) == 0:
+                del self.rooms[room_code]
+
+    async def broadcast_system_state(self, room_code: str):
+        if room_code in self.rooms:
+            users = list(self.rooms[room_code].values())
+            payload = {"type": "system", "users": users, "count": len(users)}
+            message = json.dumps(payload)
+            
+            # ONLY send to people in this specific room
+            for connection in self.rooms[room_code].keys():
+                await connection.send_text(message)
+
+    async def broadcast_code(self, code: str, room_code: str):
+        if room_code in self.rooms:
+            payload = {"type": "code", "content": code}
+            message = json.dumps(payload)
+            for connection in self.rooms[room_code].keys():
+                await connection.send_text(message)
 
 manager = ConnectionManager()
 
-# Notice the new 'username' parameter here!
+# NEW: The URL now requires both username AND room_code
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket, username: str = Query("Anonymous")):
-    await manager.connect(websocket, username)
+async def websocket_endpoint(
+    websocket: WebSocket, 
+    username: str = Query("Anonymous"),
+    room_code: str = Query(...)
+):
+    await manager.connect(websocket, room_code, username)
     try:
         while True:
             data = await websocket.receive_text()
-            await manager.broadcast_code(data)
+            # Pass the room_code so it only broadcasts to the right room
+            await manager.broadcast_code(data, room_code)
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
-        await manager.broadcast_system_state()
+        manager.disconnect(websocket, room_code)
+        # Update the user count for whoever is left in the room
+        if room_code in manager.rooms:
+            await manager.broadcast_system_state(room_code)

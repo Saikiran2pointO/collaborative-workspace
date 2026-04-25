@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Collaborative Code Editor</title>
+    <title>Private Collaborative Editor</title>
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/dracula.min.css">
@@ -12,101 +12,63 @@
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: #282a36; 
-            margin: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
+            margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh;
         }
 
-        /* --- NEW: Modal Styles --- */
+        /* Modal Styles */
         #loginModal {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.8);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 100;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex; justify-content: center; align-items: center; z-index: 100;
         }
         .modal-content {
-            background: #282a36;
-            padding: 30px;
-            border-radius: 8px;
-            text-align: center;
-            color: #f8f8f2;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
-            border: 1px solid #444;
+            background: #282a36; padding: 40px; border-radius: 8px; text-align: center;
+            color: #f8f8f2; box-shadow: 0 10px 30px rgba(0,0,0,0.8); border: 1px solid #444;
+            width: 350px;
         }
-        .modal-content input {
-            padding: 10px;
-            font-size: 16px;
-            border-radius: 4px;
-            border: none;
-            outline: none;
-            margin-right: 10px;
+        input {
+            width: 80%; padding: 12px; margin-bottom: 20px; font-size: 16px;
+            border-radius: 4px; border: none; outline: none; text-align: center;
         }
-        .modal-content button {
-            padding: 10px 20px;
-            font-size: 16px;
-            background-color: #50fa7b; /* Dracula Green */
-            color: #282a36;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: bold;
+        button {
+            width: 85%; padding: 12px; font-size: 16px; font-weight: bold; cursor: pointer;
+            border: none; border-radius: 4px; transition: 0.2s; margin-bottom: 10px;
         }
-        
-        /* --- NEW: Loading Overlay Styles --- */
+        .btn-primary { background-color: #50fa7b; color: #282a36; }
+        .btn-primary:hover { background-color: #40c962; }
+        .btn-secondary { background-color: #bd93f9; color: #282a36; }
+        .btn-secondary:hover { background-color: #9d72d8; }
+        .divider { margin: 15px 0; font-size: 14px; color: #6272a4; }
+
+        /* Loading Overlay */
         #loadingOverlay {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(40, 42, 54, 0.95); /* Solid Dracula background */
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 200;
-            color: #f8f8f2;
-            text-align: center;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(40, 42, 54, 0.95); display: none; flex-direction: column;
+            justify-content: center; align-items: center; z-index: 200; color: #f8f8f2;
         }
         .spinner {
-            border: 4px solid rgba(255, 255, 255, 0.1);
-            border-top: 4px solid #50fa7b; /* Dracula Green */
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            animation: spin 1s linear infinite;
-            margin-bottom: 20px;
+            border: 4px solid rgba(255, 255, 255, 0.1); border-top: 4px solid #50fa7b;
+            border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin-bottom: 20px;
         }
-        @keyframes spin { 
-            0% { transform: rotate(0deg); } 
-            100% { transform: rotate(360deg); } 
-        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        /* --- UPDATED: User Badge to hold a list --- */
+        /* Badges */
+        .top-bar {
+            position: absolute; top: 20px; right: 30px; display: flex; gap: 15px; z-index: 10;
+        }
+        .room-badge {
+            background-color: #ffb86c; color: #282a36; padding: 15px; border-radius: 8px; font-weight: bold;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4); text-align: center;
+        }
+        .room-badge span { font-size: 24px; display: block; margin-top: 5px; letter-spacing: 2px;}
         .user-badge {
-            position: absolute;
-            top: 20px;
-            right: 30px;
-            background-color: #bd93f9; /* Dracula Purple */
-            color: #282a36;
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
-            z-index: 10;
-            min-width: 150px;
+            background-color: #bd93f9; color: #282a36; padding: 15px; border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4); min-width: 150px;
         }
         .user-badge h3 { margin: 0 0 10px 0; font-size: 16px; }
         .user-badge ul { margin: 0; padding-left: 20px; font-size: 14px; font-weight: bold;}
 
-        .editor-container {
-            width: 80vw;
-            height: 80vh;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            border-radius: 8px;
-            overflow: hidden; 
-        }
+        .editor-container { width: 80vw; height: 80vh; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border-radius: 8px; overflow: hidden; }
         .CodeMirror { height: 100%; font-size: 16px; }
     </style>
 </head>
@@ -114,20 +76,35 @@
 
     <div id="loginModal">
         <div class="modal-content">
-            <h2>Join the Workspace</h2>
-            <input type="text" id="usernameInput" placeholder="Enter your name...">
-            <button id="joinBtn">Join</button>
+            
+            <div id="step1">
+                <h2>Enter Your Name</h2>
+                <input type="text" id="usernameInput" placeholder="e.g. Alex" autocomplete="off">
+                <button class="btn-primary" id="nextBtn">Next</button>
+            </div>
+
+            <div id="step2" style="display: none;">
+                <h2>Join or Host</h2>
+                <input type="text" id="roomInput" placeholder="Enter 6-Digit Code" maxlength="6" autocomplete="off">
+                <button class="btn-primary" id="joinBtn">Join Room</button>
+                <div class="divider">OR</div>
+                <button class="btn-secondary" id="hostBtn">Host New Room</button>
+            </div>
+
         </div>
     </div>
 
-    <div class="user-badge" id="userBadge" style="display: none;">
-        <h3 id="userCount">Live Users: 0</h3>
-        <ul id="userList"></ul>
+    <div id="loadingOverlay">
+        <div class="spinner"></div>
+        <p id="loadingText">Connecting to secure room...</p>
     </div>
 
-    <div id="loadingOverlay" style="display: none;">
-        <div class="spinner"></div>
-        <p id="loadingText">Waking up the server...<br><small style="color: #6272a4;">(Free cloud servers can take up to 50 seconds to start)</small></p>
+    <div class="top-bar" id="uiBadges" style="display: none;">
+        <div class="room-badge">Room Code<span id="displayRoomCode">------</span></div>
+        <div class="user-badge">
+            <h3 id="userCount">Live Users: 0</h3>
+            <ul id="userList"></ul>
+        </div>
     </div>
 
     <div class="editor-container">
@@ -138,83 +115,86 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/python/python.min.js"></script>
 
     <script>
-        const editorElement = document.getElementById('editor');
-        const loginModal = document.getElementById('loginModal');
+        // DOM Elements
+        const step1 = document.getElementById('step1');
+        const step2 = document.getElementById('step2');
         const usernameInput = document.getElementById('usernameInput');
+        const roomInput = document.getElementById('roomInput');
+        const nextBtn = document.getElementById('nextBtn');
         const joinBtn = document.getElementById('joinBtn');
-        const userBadge = document.getElementById('userBadge');
-        const userCount = document.getElementById('userCount');
-        const userList = document.getElementById('userList');
-        
-        let ws; // Declare WebSocket variable globally
-
-        const editor = CodeMirror.fromTextArea(editorElement, {
-            mode: "python",
-            theme: "dracula",
-            lineNumbers: true,
-            indentUnit: 4,
-            matchBrackets: true
-        });
-        editor.setValue("# Welcome to the Collaborative Python Editor\n# Start typing below...\n\n");
-
+        const hostBtn = document.getElementById('hostBtn');
+        const displayRoomCode = document.getElementById('displayRoomCode');
+        const uiBadges = document.getElementById('uiBadges');
+        const loginModal = document.getElementById('loginModal');
         const loadingOverlay = document.getElementById('loadingOverlay');
-        const loadingText = document.getElementById('loadingText');
 
-        // --- UPDATED: Show loader when clicking Join ---
-        joinBtn.addEventListener('click', () => {
-            const username = usernameInput.value.trim();
-            if (username !== "") {
-                loginModal.style.display = 'none'; 
-                loadingOverlay.style.display = 'flex'; // Show the loading screen
-                connectToServer(username);
+        let globalUsername = "";
+        let ws;
+
+        // Initialize Editor
+        const editor = CodeMirror.fromTextArea(document.getElementById('editor'), {
+            mode: "python", theme: "dracula", lineNumbers: true, indentUnit: 4, matchBrackets: true
+        });
+        editor.setValue("# Welcome to your private workspace.\n# Start typing...\n\n");
+
+        // UI Logic: Step 1 -> Step 2
+        nextBtn.addEventListener('click', () => {
+            if (usernameInput.value.trim() !== "") {
+                globalUsername = usernameInput.value.trim();
+                step1.style.display = 'none';
+                step2.style.display = 'block';
             }
         });
 
-        // Allow pressing "Enter" to join
-        usernameInput.addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') joinBtn.click();
+        // UI Logic: Host Room
+        hostBtn.addEventListener('click', () => {
+            // Generate a random 6 digit code
+            const generatedCode = Math.floor(100000 + Math.random() * 900000).toString();
+            startConnection(globalUsername, generatedCode);
         });
 
-        function connectToServer(username) {
-            // Replace with your actual Render URL
-            ws = new WebSocket(`wss://my-collab-backend-382d.onrender.com/ws?username=${encodeURIComponent(username)}`);
+        // UI Logic: Join Room
+        joinBtn.addEventListener('click', () => {
+            const code = roomInput.value.trim();
+            if (code.length === 6) {
+                startConnection(globalUsername, code);
+            } else {
+                alert("Please enter a valid 6-digit code.");
+            }
+        });
 
-            // --- NEW: Handle Successful Connection ---
+        function startConnection(username, roomCode) {
+            loginModal.style.display = 'none';
+            loadingOverlay.style.display = 'flex';
+            displayRoomCode.innerText = roomCode; // Update the UI badge with the code
+            
+            // BE SURE TO REPLACE THIS URL WITH YOUR RENDER URL
+            const renderURL = "your-actual-render-name.onrender.com"; 
+            
+            // Note the new URL structure: ?username=X&room_code=Y
+            ws = new WebSocket(`wss://my-collab-backend-382d.onrender.com/ws?username=${encodeURIComponent(username)}&room_code=${roomCode}`);
+
             ws.onopen = function() {
-                console.log("Connected as " + username);
-                loadingOverlay.style.display = 'none'; // Hide the loader
-                userBadge.style.display = 'block';     // Show the user badge
+                loadingOverlay.style.display = 'none';
+                uiBadges.style.display = 'flex';
             };
 
-            // --- NEW: Handle Connection Errors ---
             ws.onerror = function() {
-                document.querySelector('.spinner').style.display = 'none'; // Hide spinner
-                loadingText.innerHTML = 'Failed to connect to the server.<br><small style="color: #ff5555;">The server might be down. Please refresh to try again.</small>';
-            };
-
-            // --- NEW: Handle Disconnections ---
-            ws.onclose = function() {
-                if (loadingOverlay.style.display === 'none') {
-                    // If they were already in the app, show them they disconnected
-                    loadingOverlay.style.display = 'flex';
-                }
                 document.querySelector('.spinner').style.display = 'none';
-                loadingText.innerHTML = 'Connection lost.<br><small style="color: #ff5555;">Please refresh the page to reconnect.</small>';
-                userBadge.style.display = 'none';
+                document.getElementById('loadingText').innerHTML = 'Failed to connect.<br><small style="color: #ff5555;">Server might be waking up or down.</small>';
             };
 
             ws.onmessage = function(event) {
                 const data = JSON.parse(event.data);
-
                 if (data.type === 'system') {
-                    userCount.innerText = `Live Users: ${data.count}`;
+                    document.getElementById('userCount').innerText = `Live Users: ${data.count}`;
+                    const userList = document.getElementById('userList');
                     userList.innerHTML = '';
                     data.users.forEach(user => {
                         const li = document.createElement('li');
                         li.innerText = user;
                         userList.appendChild(li);
                     });
-
                 } else if (data.type === 'code') {
                     const currentCursor = editor.getCursor(); 
                     if (editor.getValue() !== data.content) {
