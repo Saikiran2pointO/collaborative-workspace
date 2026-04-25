@@ -1,68 +1,92 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
-from typing import Dict
+from typing import Dict, Any
 import json
 
 app = FastAPI()
 
 class ConnectionManager:
     def __init__(self):
-        # NEW STRUCTURE: { "room_code": { websocket: "username" } }
-        self.rooms: Dict[str, Dict[WebSocket, str]] = {}
+        # UPGRADED STRUCTURE: { "room_code": { "host": "username", "connections": {websocket: "username"} } }
+        self.rooms: Dict[str, Dict[str, Any]] = {}
 
-    async def connect(self, websocket: WebSocket, room_code: str, username: str):
-        await websocket.accept()
-        
-        # If the room doesn't exist yet, create it
+    async def connect(self, websocket: WebSocket, room_code: str, username: str, action: str):
+        # If hosting a new room, set this user as the host
         if room_code not in self.rooms:
-            self.rooms[room_code] = {}
+            self.rooms[room_code] = {
+                "host": username,
+                "connections": {}
+            }
             
-        # Add the user to the specific room
-        self.rooms[room_code][websocket] = username
+        self.rooms[room_code]["connections"][websocket] = username
         await self.broadcast_system_state(room_code)
 
     def disconnect(self, websocket: WebSocket, room_code: str):
-        # Remove the user from the room
-        if room_code in self.rooms and websocket in self.rooms[room_code]:
-            del self.rooms[room_code][websocket]
+        if room_code in self.rooms and websocket in self.rooms[room_code]["connections"]:
+            del self.rooms[room_code]["connections"][websocket]
             
-            # Housekeeping: If the room is empty, delete it from memory to save server space
-            if len(self.rooms[room_code]) == 0:
+            # If the room is empty, delete it completely
+            if len(self.rooms[room_code]["connections"]) == 0:
                 del self.rooms[room_code]
 
     async def broadcast_system_state(self, room_code: str):
         if room_code in self.rooms:
-            users = list(self.rooms[room_code].values())
+            room_data = self.rooms[room_code]
+            host_name = room_data["host"]
+            
+            # Build the user list, adding "(Host)" to the creator's name
+            users = []
+            for uname in room_data["connections"].values():
+                if uname == host_name:
+                    users.append(f"{uname} (Host)")
+                else:
+                    users.append(uname)
+
             payload = {"type": "system", "users": users, "count": len(users)}
             message = json.dumps(payload)
             
-            # ONLY send to people in this specific room
-            for connection in self.rooms[room_code].keys():
+            for connection in room_data["connections"].keys():
                 await connection.send_text(message)
 
     async def broadcast_code(self, code: str, room_code: str):
         if room_code in self.rooms:
             payload = {"type": "code", "content": code}
             message = json.dumps(payload)
-            for connection in self.rooms[room_code].keys():
+            for connection in self.rooms[room_code]["connections"].keys():
                 await connection.send_text(message)
 
 manager = ConnectionManager()
 
-# NEW: The URL now requires both username AND room_code
+# NEW: We now require an 'action' (either "join" or "host")
 @app.websocket("/ws")
 async def websocket_endpoint(
     websocket: WebSocket, 
-    username: str = Query("Anonymous"),
-    room_code: str = Query(...)
+    username: str = Query(...),
+    room_code: str = Query(...),
+    action: str = Query(...) 
 ):
-    await manager.connect(websocket, room_code, username)
+    await websocket.accept()
+
+    # BUG 2 FIX: Prevent joining ghost rooms
+    if action == "join" and room_code not in manager.rooms:
+        await websocket.send_text(json.dumps({"type": "error", "message": "Room does not exist. Please check your 6-digit code."}))
+        await websocket.close()
+        return
+
+    # BUG 1 FIX: Prevent duplicate usernames in the same room
+    if room_code in manager.rooms:
+        existing_users = manager.rooms[room_code]["connections"].values()
+        if username in existing_users:
+            await websocket.send_text(json.dumps({"type": "error", "message": f"The name '{username}' is already taken in this room. Please choose another."}))
+            await websocket.close()
+            return
+
+    # If all security checks pass, connect them!
+    await manager.connect(websocket, room_code, username, action)
     try:
         while True:
             data = await websocket.receive_text()
-            # Pass the room_code so it only broadcasts to the right room
             await manager.broadcast_code(data, room_code)
     except WebSocketDisconnect:
         manager.disconnect(websocket, room_code)
-        # Update the user count for whoever is left in the room
         if room_code in manager.rooms:
             await manager.broadcast_system_state(room_code)
